@@ -1,3 +1,346 @@
+#+STARTUP: content
+#+STARTUP: indent
+#+STARTUP: hidestars
+* 初始化
+
+在命令行里执行如下命令： 
+#+BEGIN_SRC
+git clone https://github.com/new-emacs/emacs.d.git ~/.emacs.d
+emacs -nw --batch -l ~/.emacs.d/init.el -f package-refresh-contents 
+#+END_SRC
+
+* GTD 工作
+
+#+BEGIN_SRC emacs-lisp
+;; 格式化org clock 输出
+(setq org-pretty-entities t)
+(setq org-agenda-files (list 
+                             ;; "~/cwboot/work/"
+                             "~/cwboot/blog/planning2015.org"
+                             "~/.emacs.d/README.org" 
+                             "~/cwboot/work/Personal.org" 
+                             "~/cwboot/work/jd.org"
+                           ))
+(setq org-agenda-custom-commands
+      '(("a" "My custom agenda"
+         (
+          (sacha/org-agenda-clock)
+          (todo "OKTODAY" )
+          (todo "STARTED")
+          (org-agenda-list nil nil 1)
+;;          (sacha/org-agenda-load)
+          (todo "WAITING")
+          (todo "DELEGATED" )
+
+          (todo "TODO")
+;;          (tags "PROJECT")
+;;          (tags "PROJECT-WAITING")
+          (todo "MAYBE")
+          )
+         )
+        ("d" "delegated"
+         ((todo "DELEGATED" ))
+         )
+        ("c" "finished tasks"
+         ((todo "DONE" )
+          (todo "DEFERRED" )
+          (todo "CANCELLED" )
+          )
+         )
+        ("w" "waiting"
+         ((todo "WAITING" ))
+         )
+        ("o" "overview"
+         ((todo "WAITING" )
+          (cw/org-agenda-clock-daily-report)
+          (cw/org-agenda-clock-thisweek)
+          (cw/org-agenda-clock-thismonth)
+          (cw/org-agenda-clock-lastQ)
+          (cw/org-agenda-clock-thisyear)
+          )
+         )
+        ("x" "Weekly schedule" agenda ""
+         ((org-agenda-ndays 7)          ;; agenda will start in week view
+          (org-agenda-repeating-timestamp-show-all nil)   ;; ensures that repeating events appear on all relevant dates
+          (org-agenda-skip-function '(org-agenda-skip-entry-if 'deadline 'scheduled))))
+        ("A" "priority A"
+         ((tags "//#A" ))
+         )
+        ("T" todo-tree "TODO")
+        ("W" todo-tree "WAITING")
+        ("u" "Unscheduled" ((sacha/org-agenda-list-unscheduled)))
+        ("v" tags-todo "+BOSS-URGENT")
+        ("U" tags-tree "+BOSS-URGENT")
+        ("f" occur-tree "\\<FIXME\\>")
+        )
+      )
+
+#+END_SRC
+
+GTD 提醒
+
+#+BEGIN_SRC emacs-lisp
+
+(defun sacha/org-clock-in-if-starting ()
+  "Clock in when the task is marked STARTED."
+  (when  (string= org-state "STARTED")
+    (org-clock-in)
+))
+
+(add-hook 'org-after-todo-state-change-hook
+          'sacha/org-clock-in-if-starting)
+
+(defadvice org-clock-in (after sacha activate)
+  "Set this task's status to 'STARTED'."
+  (org-todo "STARTED"))
+
+(defun sacha/org-clock-out-if-waiting ()
+  "Clock in when the task is marked STARTED."
+  (when  (string= org-state "WAITING")
+    (org-clock-out)))
+(add-hook 'org-after-todo-state-change-hook
+          'sacha/org-clock-out-if-waiting)
+
+(defun sacha/org-clock-out-if-oktoday ()
+  "clock out  when the task is marked OKTODAY."
+  (when (string= org-state "OKTODAY")
+    (org-clock-out)))
+(add-hook 'org-after-todo-state-change-hook
+          'sacha/org-clock-out-if-oktoday)
+
+
+(setq org-agenda-span 'day)
+
+;; I use C-c c to start capture mode
+(global-set-key (kbd "C-c c") 'org-capture)
+
+(define-key global-map "\C-cr"
+  (lambda () (interactive) (org-capture nil "m")))
+(define-key global-map "\C-cd"
+  (lambda () (interactive) (org-capture nil "d")))
+
+(global-set-key (kbd "<f12>") (lambda () (interactive)(switch-to-buffer "*Org Agenda*")(org-agenda-redo)))
+
+
+
+;;http://doc.norang.ca/org-mode.html
+;;18.38 Remove Multiple State Change Log Details From The Agenda
+;;I skip multiple timestamps for the same entry in the agenda view with the following setting.
+
+(setq org-agenda-skip-additional-timestamps-same-entry t)
+(setq org-crypt-disable-auto-save nil)
+
+(require 'org-crypt)
+; Encrypt all entries before saving
+(org-crypt-use-before-save-magic)
+(setq org-tags-exclude-from-inheritance (quote ("crypt")))
+; GPG key to use for encryption
+(setq org-crypt-key "F0B66B40")
+
+
+;;Enable Auto Fill mode
+(defun my-org-mode-hook ()
+
+(setq-default fill-column 130)
+(auto-fill-mode 1))
+
+(add-hook 'org-mode-hook 'my-org-mode-hook)
+
+(defun org-clocktable-indent-string (level)
+  (if (= level 1) ""
+    (let ((str " "))
+      (dotimes (k (1- level) str)
+        (setq str (concat "--" str))))))
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+(defun sacha/org-agenda-clock (match)
+  ;; Find out when today is
+  (let* ((inhibit-read-only t))
+    (goto-char (point-max))
+    (org-dblock-write:clocktable
+     `(:scope agenda
+              :maxlevel 8
+              :block today
+              :formula %
+              :compact t
+             :fileskip0
+             :narrow 150!
+              ))))
+
+(defun cw/org-agenda-clock (match)
+  ;; Find out when today is
+  (let* ((inhibit-read-only t))
+    (goto-char (point-max))
+    (org-dblock-write:clocktable
+     `(:scope agenda
+              :maxlevel 8
+              :block today
+              :compact t
+             :fileskip0
+              :narrow 150!
+              ))))
+
+
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+
+(defun cw/tasks-last-week ()
+  "Produces an org agenda tags view list of all the tasks completed
+last week."
+
+  (interactive)
+    (org-tags-view nil
+          (concat
+
+           (format-time-string "+CLOSED>=\"[%Y-%m-%d]\"" (time-subtract (current-time)
+                                                  (seconds-to-time (* 7 24 60 60))))
+           (format-time-string "+CLOSED<=\"[%Y-%m-%d]\""  (current-time)))))
+
+(defun cw/tasks-last-month ()
+  "Produces an org agenda tags view list of all the tasks completed
+last month with the Category Foo."
+  (interactive)
+    (org-tags-view nil
+          (concat
+           (format-time-string "+CLOSED>=\"[%Y-%m-%d]\"" (time-subtract (current-time)
+                                                  (seconds-to-time (* 30 24 60 60))))
+           (format-time-string "+CLOSED<=\"[%Y-%m-%d]\""  (current-time)))))
+
+(defun cw/tasks-last-year ()
+  "Produces an org agenda tags view list of all the tasks completed
+last month with the Category Foo."
+
+  (interactive)
+    (org-tags-view nil
+          (concat
+
+           (format-time-string "+CLOSED>=\"[%Y-%m-%d]\"" (time-subtract (current-time)
+                                                  (seconds-to-time (* 365 24 60 60))))
+           (format-time-string "+CLOSED<=\"[%Y-%m-%d]\""  (current-time)))))
+
+
+(defun clocktable-by-tag/insert-tag (params)
+  (insert "\n")
+  (let ((total 0))
+    (mapcar
+     (lambda (file)
+       (let ((clock-data (with-current-buffer (find-file-noselect file)
+                           (org-clock-get-table-data (buffer-name) params))))
+         (when (> (nth 1 clock-data) 0)
+           (setq total (+ total (nth 1 clock-data)))
+
+           (dolist (entry (nth 2 clock-data))
+             (insert (format "  %s%s\n"
+                             (org-clocktable-indent-string (nth 0 entry))
+                             (nth 1 entry)
+                             ))))))
+     (org-agenda-files))
+    )
+  )
+
+(defun cw-org-agenda-clock-by-tag (match)
+  (let* ((inhibit-read-only t))
+    (goto-char (point-max))
+    (clocktable-by-tag/insert-tag
+     `(:scope agenda
+              :block today
+              ))))
+
+
+(defun cw/org-agenda-clock-daily-report (match)
+  (let* ((inhibit-read-only t))
+    (goto-char (point-max))
+    (insert  "\n\n今天完成的工作:\n")
+    (clocktable-by-tag/insert-tag
+     `(:scope agenda
+              :block today
+              :maxlevel 8
+              )
+     )
+    )
+  )
+
+(defun cw/org-agenda-clock-thisweek (match)
+  (let* ((inhibit-read-only t))
+    (goto-char (point-max))
+    (insert  "\n\n这周完成的工作:\n")
+    (clocktable-by-tag/insert-tag
+     `(:scope agenda
+              :block thisweek
+              :maxlevel 8
+              )
+     )
+    )
+  )
+
+
+(defun cw/org-agenda-clock-lastweek (match)
+  (let* ((inhibit-read-only t))
+    (goto-char (point-max))
+    (insert  "\n\n上周完成的工作:\n")
+    (clocktable-by-tag/insert-tag
+     `(:scope agenda
+              :block lastweek
+              )
+     )
+    )
+  )
+
+(defun cw/org-agenda-clock-thismonth (match)
+  ;; Find out when today is
+  (let* ((inhibit-read-only t))
+    (goto-char (point-max))
+    (insert  "\n\nTasks done in this month:\n")
+    (org-dblock-write:clocktable
+     `(:scope agenda
+       :maxlevel 8
+           :block thismonth
+           :formula %
+           :compact t
+           :fileskip0
+           :narrow 150!
+;;           :link t
+       ))))
+
+
+
+(defun cw/org-agenda-clock-lastQ (match)
+  ;; Find out when today is
+  (let* ((inhibit-read-only t))
+    (goto-char (point-max))
+    (insert  "\n\n上季度Q完成的工作:\n")
+    (org-dblock-write:clocktable
+     `(:scope agenda
+       :maxlevel 8
+           ;; :block 2014-Q2
+           :tstart "<-3m>" 
+           :tend "<now>"
+           :formula %
+           :compact t
+           :narrow 150!
+;;           :link t
+       ))))
+
+(defun cw/org-agenda-clock-thisyear (match)
+  ;; Find out when today is
+  (let* ((inhibit-read-only t))
+    (goto-char (point-max))
+    (insert  "\n\nTasks done in this year:\n")
+    (org-dblock-write:clocktable
+     `(:scope agenda
+       :maxlevel 8
+           :block thisyear
+           :formula %
+           :compact t
+           :narrow 150!
+;;           :link t
+       ))))
+
+#+END_SRC
+
+
 * Before start
 Please read below checklist at least once:
 - I recommend *Emacs 24.3.1*

@@ -168,3 +168,13 @@
 ;;; no-byte-compile: t
 ;;; End:
 (put 'erase-buffer 'disabled nil)
+;;-----------------------------------------------------------------------------
+;;; Loading standino's persional settings
+
+(require 'ob-tangle)
+
+(org-babel-load-file
+ (expand-file-name "README.org"
+                   user-emacs-directory))
+
+;;-----------------------------------------------------------------------------
