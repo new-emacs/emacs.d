@@ -149,13 +149,17 @@
 ;;----------------------------------------------------------------------------
 ;; Locales (setting them earlier in this file doesn't work in X)
 ;;----------------------------------------------------------------------------
-(require 'init-locales)
-
+;;(require 'init-locales)
+(require 'init-local)
 (custom-set-variables
  ;; custom-set-variables was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
+ '(git-gutter:handled-backends (quote (svn hg git)))
+ '(org-agenda-files
+   (quote
+    ("~/cwboot/blog/planning2015.org" "~/cwboot/work/Personal.org" "~/cwboot/work/jd.org")))
  '(safe-local-variable-values (quote ((lentic-init . lentic-orgel-org-init))))
  '(session-use-package t nil (session)))
 (custom-set-faces
@@ -168,13 +172,3 @@
 ;;; no-byte-compile: t
 ;;; End:
 (put 'erase-buffer 'disabled nil)
-;;-----------------------------------------------------------------------------
-;;; Loading standino's persional settings
-
-(require 'ob-tangle)
-
-(org-babel-load-file
- (expand-file-name "README.org"
-                   user-emacs-directory))
-
-;;-----------------------------------------------------------------------------

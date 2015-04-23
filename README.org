@@ -339,6 +339,173 @@ last month with the Category Foo."
        ))))
 
 #+END_SRC
+*** 每周回顾
+
+- =C-c a e= : 导出到~/review/目录下。
+- =C-c a R : 按天/周/月回顾任务
+
+#+BEGIN_SRC emacs-lisp
+;; define "R" as the prefix key for reviewing what happened in various
+;; time periods
+(add-to-list 'org-agenda-custom-commands
+             '("R" . "Review" )
+             )
+
+;; Common settings for all reviews
+(setq efs/org-agenda-review-settings
+      '(
+        (org-agenda-show-all-dates t)
+        (org-agenda-start-with-log-mode t)
+        (org-agenda-start-with-clockreport-mode t)
+        (org-agenda-archives-mode t)
+        ;; I don't care if an entry was archived
+        (org-agenda-hide-tags-regexp
+         (concat org-agenda-hide-tags-regexp
+                 "\\|ARCHIVE"))
+      ))
+;; Show the agenda with the log turn on, the clock table show and
+;; archived entries shown.  These commands are all the same exept for
+;; the time period.
+(add-to-list 'org-agenda-custom-commands
+             `("Rw" "Week in review"
+                agenda ""
+                ;; agenda settings
+                ,(append
+                  efs/org-agenda-review-settings
+                  '((org-agenda-span 'week)
+                    (org-agenda-start-on-weekday 0)
+                    (org-agenda-overriding-header "Week in Review"))
+                  )
+                ("~/review/week.html")
+                ))
+
+
+(add-to-list 'org-agenda-custom-commands
+             `("Rd" "Day in review"
+                agenda ""
+                ;; agenda settings
+                ,(append
+                  efs/org-agenda-review-settings
+                  '((org-agenda-span 'day)
+                    (org-agenda-overriding-header "Week in Review"))
+                  )
+                ("~/review/day.html")
+                ))
+
+(add-to-list 'org-agenda-custom-commands
+             `("Rm" "Month in review"
+                agenda ""
+                ;; agenda settings
+                ,(append
+                  efs/org-agenda-review-settings
+                  '((org-agenda-span 'month)
+                    (org-agenda-start-day "01")
+                    (org-read-date-prefer-future nil)
+                    (org-agenda-overriding-header "Month in Review"))
+                  )
+                ("~/review/month.html")
+                ))
+#+END_SRC
+*** GTD & Pomodoro
+#+BEGIN_SRC emacs-lisp
+(defun my-after-load-org ()
+  (add-to-list 'org-modules 'org-timer))
+(eval-after-load "org" '(my-after-load-org))
+
+(setq org-timer-default-timer 25)
+
+(add-hook 'org-clock-in-hook' (lambda ()
+       (if (not org-timer-current-timer)
+       (org-timer-set-timer '(16)))))
+
+(add-hook 'org-clock-out-hook' (lambda ()
+       (setq org-mode-line-string nil)
+))
+
+(add-hook 'org-timer-done-hook 'have-a-rest)
+
+(defun have-a-rest ()
+  "alert a have a rest msg"
+  (interactive)
+  (save-window-excursion
+    (x-popup-dialog t '( "休息一下吧"  ("okay" . t)) t)
+    )
+  )
+
+#+END_SRC
+*** 提醒 在org文件中设定的任务，到时会弹出框提醒
+
+#+BEGIN_SRC emacs-lisp
+(defun my-appt-disp-window (min-to-app new-time msg)
+  (save-window-excursion
+    (x-popup-dialog t '( (string-replace-all "<" "[]" msg)  ("okay" . t)) t)
+    )
+  )
+#+END_SRC
+
+**** 获得org agenda 中的TODO，到时提醒
+
+#+BEGIN_SRC emacs-lisp
+;;;; Get appointments for today
+(defun my-org-agenda-to-appt ()
+  (interactive)
+  (setq appt-time-msg-list nil)
+  (let ((org-deadline-warning-days 0))    ;; will be automatic in org 5.23
+    (org-agenda-to-appt)))
+
+;; Run once, activate and schedule refresh
+(my-org-agenda-to-appt)
+(appt-activate t)
+(run-at-time "24:01" nil 'my-org-agenda-to-appt)
+
+(setq appt-issue-message t)
+(setq appt-message-warning-time '1)
+(setq appt-display-interval '1)
+
+(setq org-deadline-warning-days '1)
+; Update appt each time agenda opened.
+(add-hook 'org-finalize-agenda-hook 'my-org-agenda-to-appt)
+
+ ; Setup zenify, we tell appt to use window, and replace default function
+(setq appt-display-format 'window)
+(setq appt-disp-window-function (function my-appt-disp-window))
+
+#+END_SRC
+
+#+BEGIN_SRC emacs-lisp
+;;
+;; Resume clocking task when emacs is restarted
+(org-clock-persistence-insinuate)
+;;
+;; Show lot of clocking history so it's easy to pick items off the C-F11 list
+(setq org-clock-history-length 23)
+;; Resume clocking task on clock-in if the clock is open
+(setq org-clock-in-resume t)
+
+;; Separate drawers for clocking and logs
+(setq org-drawers (quote ("PROPERTIES" "LOGBOOK")))
+;; Save clock data and state changes and notes in the LOGBOOK drawer
+(setq org-clock-into-drawer t)
+;; Sometimes I change tasks I'm clocking quickly - this removes clocked tasks with 0:00 duration
+(setq org-clock-out-remove-zero-time-clocks t)
+;; Clock out when moving task to a done state
+(setq org-clock-out-when-done t)
+;; Save the running clock and all clock history when exiting Emacs, load it on startup
+(setq org-clock-persist t)
+;; Do not prompt to resume an active clock
+(setq org-clock-persist-query-resume nil)
+;; Enable auto clock resolution for finding open clocks
+(setq org-clock-auto-clock-resolution (quote when-no-clock-is-running))
+;; Include current clocking task in clock reports
+(setq org-clock-report-include-clocking-task t)
+
+(setq org-log-done (quote time))
+(setq org-log-into-drawer t)
+(setq org-log-state-notes-insert-after-drawers nil)
+
+
+
+#+END_SRC
 
 
 * Before start
